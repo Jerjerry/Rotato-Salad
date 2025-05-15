@@ -8,7 +8,7 @@ class ProductionRotation:
     def __init__(self):
         self.lines = ['B', 'C', 'L', 'M', 'N', 'O']
         self.stations = list(range(1, 21))
-        self.non_operational_stations = {}
+        self.non_operational_stations = {} # This will store the down stations
         self.fixed_stations = {}
 
     def set_non_operational(self, line, stations):
@@ -74,8 +74,9 @@ def update_session_state_on_submit():
     st.session_state.has_accommodation_c = len(st.session_state.get("accommodation_stations_c", [])) > 0
     st.session_state.accommodation_c = st.session_state.get("accommodation_stations_c", [])
 
+
 # --- HTML Generation ---
-def generate_print_friendly_html(date, schedule):
+def generate_print_friendly_html(date, schedule, down_stations_data):
     html = f"""
     <!DOCTYPE html>
     <html lang='en'>
@@ -95,7 +96,25 @@ def generate_print_friendly_html(date, schedule):
             .line-group {{ margin-bottom: 6mm; page-break-inside: avoid; }}
             .line-title {{ font-size: 12pt; font-weight: 600; text-align: center; margin-bottom: 3mm; padding: 2mm 4mm; background-color: #f2f2f7; text-transform: uppercase; color: #1c1c1e; border-radius: 4px; }}
             .pairs {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 3mm; padding: 0 2mm; }}
-            .pair {{ padding: 3mm 4mm; border: 1px solid #d1d1d6; border-radius: 4px; font-size: 10pt; text-align: center; background-color: white; color: #1c1c1e; }}
+            
+            /* Base style for all pair-like boxes */
+            .pair {{ 
+                padding: 3mm 4mm; 
+                border: 1px solid #d1d1d6; 
+                border-radius: 4px; 
+                font-size: 10pt; 
+                text-align: center; 
+                background-color: white; 
+                color: #1c1c1e; 
+            }}
+            
+            /* Modifier class for down station items within the pairs grid */
+            .pair.down-station-item {{
+                background-color: #fdecea; /* Light red background */
+                color: #c0392b;            /* Red text */
+                border-color: #c0392b;     /* Red border */
+            }}
+
             .empty-message {{ font-style: italic; color: #8e8e93; text-align: center; padding: 3mm; font-size: 10pt; grid-column: 1 / -1; }}
             .watermark {{ margin-top: 40px; text-align: center; opacity: 0.15; font-size: 12pt; }}
         </style>
@@ -106,23 +125,49 @@ def generate_print_friendly_html(date, schedule):
             <div class='columns'>
                 <div class='column'>
     """
-    for line in ['B', 'C', 'L']:
-        html += f'<div class="line-group"><div class="line-title">Line {line}</div><div class="pairs">'
-        if not schedule.get(line):
-            html += '<div class="empty-message">No pairs generated</div>'
-        else:
-            for pair in schedule[line]:
-                html += f'<div class="pair">{pair}</div>'
-        html += '</div></div>'
-    html += '</div><div class="column">'
-    for line in ['M', 'N', 'O']:
-        html += f'<div class="line-group"><div class="line-title">Line {line}</div><div class="pairs">'
-        if not schedule.get(line):
-            html += '<div class="empty-message">No pairs generated</div>'
-        else:
-            for pair in schedule[line]:
-                html += f'<div class="pair">{pair}</div>'
-        html += '</div></div>'
+    lines_first_column = ['B', 'C', 'L']
+    lines_second_column = ['M', 'N', 'O']
+
+    # Column 1
+    for line in lines_first_column:
+        html += f'<div class="line-group"><div class="line-title">Line {line}</div><div class="pairs">' # Open .pairs div
+        has_content = False
+        if schedule.get(line): # Add actual pairs if they exist
+            for pair_text in schedule[line]:
+                html += f'<div class="pair">{pair_text}</div>'
+            has_content = True
+        
+        current_line_down_stations = down_stations_data.get(line, [])
+        if current_line_down_stations:
+            down_stations_str = ', '.join(map(str, sorted(current_line_down_stations)))
+            html += f'<div class="pair down-station-item">{down_stations_str}</div>'
+            has_content = True
+        
+        if not has_content:
+             html += '<div class="empty-message">No pairs or unavailable stations</div>'
+        
+        html += '</div></div>' # Close .pairs and .line-group
+    html += '</div><div class="column">' # End of first column, start of second
+
+    # Column 2
+    for line in lines_second_column:
+        html += f'<div class="line-group"><div class="line-title">Line {line}</div><div class="pairs">' # Open .pairs div
+        has_content = False
+        if schedule.get(line): # Add actual pairs if they exist
+            for pair_text in schedule[line]:
+                html += f'<div class="pair">{pair_text}</div>'
+            has_content = True
+
+        current_line_down_stations = down_stations_data.get(line, [])
+        if current_line_down_stations:
+            down_stations_str = ', '.join(map(str, sorted(current_line_down_stations)))
+            html += f'<div class="pair down-station-item">{down_stations_str}</div>'
+            has_content = True
+            
+        if not has_content:
+            html += '<div class="empty-message">No pairs or unavailable stations</div>'
+        
+        html += '</div></div>' # Close .pairs and .line-group
     html += f"""
             </div>
         </div>
@@ -139,7 +184,7 @@ def main():
     st.title("Station Rotation")
 
     initialize_session_state()
-    rotation = ProductionRotation()
+    rotation = ProductionRotation() 
     all_stations_list = rotation.stations
     lines_list = rotation.lines
 
@@ -148,10 +193,10 @@ def main():
         st.subheader("Temporarily Unavailable Stations")
         st.caption("Select stations temporarily unavailable for today on each line.")
 
-        for line in lines_list:
+        for line_key in lines_list: 
             available_stations_for_line = all_stations_list
 
-            if line == 'C':
+            if line_key == 'C':
                 accommodation_options_c = available_stations_for_line
                 accommodated_stations_c = st.multiselect(
                     "Line C Accommodations",
@@ -165,27 +210,25 @@ def main():
 
                 if available_for_down_c:
                     st.multiselect(
-                        "Line C",
+                        "Line C (Unavailable)",
                         options=available_for_down_c,
-                        default=st.session_state.non_operational.get(line, []),
-                        key=f"non_op_{line}",
-                        help=f"Select stations temporarily unavailable today on Line C (excluding accommodations)."
+                        default=st.session_state.non_operational.get(line_key, []),
+                        key=f"non_op_{line_key}",
+                        help=f"Select stations temporarily unavailable today on Line C (excluding accommodated stations)."
                     )
                 else:
                     st.info("No additional stations available to be marked as down on Line C after selecting accommodations.")
-
             else:
                 if not available_stations_for_line:
-                    st.warning(f"No stations available for Line {line}.")
+                    st.warning(f"No stations available for Line {line_key}.")
                 else:
                     st.multiselect(
-                        f"Line {line}",
+                        f"Line {line_key} (Unavailable)",
                         options=available_stations_for_line,
-                        default=st.session_state.non_operational.get(line, []),
-                        key=f"non_op_{line}",
-                        help=f"Select stations temporarily unavailable today on Line {line}."
+                        default=st.session_state.non_operational.get(line_key, []),
+                        key=f"non_op_{line_key}",
+                        help=f"Select stations temporarily unavailable today on Line {line_key}."
                     )
-
         st.divider()
         submitted = st.form_submit_button(
             "Generate & Download",
@@ -196,26 +239,35 @@ def main():
 
     if submitted:
         st.header("Download")
-        for line in lines_list:
-            rotation.set_non_operational(line, st.session_state.non_operational.get(line, []))
+        for line_code in lines_list: 
+            rotation.set_non_operational(line_code, st.session_state.non_operational.get(line_code, []))
         rotation.set_fixed('C', st.session_state.get("accommodation_c", []))
 
         current_date_display, schedule_data = rotation.generate_schedule()
+        
+        down_stations_for_html = rotation.non_operational_stations 
 
-        if all(not pairs for pairs in schedule_data.values()):
-            st.error("No operational stations available across any lines based on current settings. Cannot generate a schedule.")
-        else:
-            html_content = generate_print_friendly_html(current_date_display, schedule_data)
-            html_buffer = io.BytesIO(html_content.encode('utf-8'))
-            st.download_button(
-                label="Click Here to Download HTML",
-                data=html_buffer,
-                file_name=f"station_rotation_{current_date_display.replace('/', '-')}.html",
-                mime="text/html",
-                use_container_width=True,
-                key='download_button'
-            )
-            st.success("HTML file ready. Click the button above to download.")
+        # Check if there's any meaningful data to display
+        has_any_pairs = any(schedule_data.values())
+        has_any_down_stations = any(down_stations_for_html.values())
+
+        if not has_any_pairs and not has_any_down_stations:
+            st.error("No operational stations for pairs and no unavailable stations selected. Cannot generate a meaningful schedule.")
+            return 
+        elif not has_any_pairs and has_any_down_stations:
+             st.info("No operational stations available for pairing. The report will show only the unavailable stations.")
+        
+        html_content = generate_print_friendly_html(current_date_display, schedule_data, down_stations_for_html)
+        html_buffer = io.BytesIO(html_content.encode('utf-8'))
+        st.download_button(
+            label="Click Here to Download HTML",
+            data=html_buffer,
+            file_name=f"station_rotation_{current_date_display.replace('/', '-')}.html",
+            mime="text/html",
+            use_container_width=True,
+            key='download_button'
+        )
+        st.success("HTML file ready. Click the button above to download.")
 
     elif 'last_date' not in st.session_state:
         st.info("Configure station settings using the form above and click 'Generate & Download'.")
