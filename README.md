@@ -60,4 +60,10 @@ A streamlined tool for managing and generating production line rotation schedule
 
 ## License
 
-This project is for internal use only and is not publicly licensed.
+Copyright © 2025 Jerry Jerz, JERZ. All Rights Reserved.
+
+This program is the property of Jerry Jerz and JERZ.  
+Unauthorized copying, redistribution, modification, or use of this program, in whole or in part, is strictly prohibited without prior written consent from the creator.  
+
+This software is licensed for internal use only.  
+Any other use requires explicit written permission from Jerry Jerz / JERZ.
