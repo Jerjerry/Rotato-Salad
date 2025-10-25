@@ -7,8 +7,7 @@ A streamlined tool for managing and generating production line rotation schedule
 - Generate rotation schedules for multiple production lines
 - Handle non-operational stations
 - Manage accommodation stations for Line C
-- Clean, professional print layout
-- Amazon-style dark theme
+- Clean, professional print layout
 
 ## How to Use
 
