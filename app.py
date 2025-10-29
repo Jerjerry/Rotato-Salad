@@ -1,6 +1,7 @@
-import streamlit as st
+                    import streamlit as st
 from datetime import datetime
 import io
+import base64
 from typing import List, Dict, Tuple, Any, Set, Optional
 
 # --- Configuration Constants ---
@@ -79,29 +80,25 @@ def initialize_session_state() -> None:
     current_date_str: str = datetime.now().strftime("%Y-%m-%d")
     if 'last_date' not in st.session_state or st.session_state.last_date != current_date_str:
         st.session_state.last_date = current_date_str
-        # Reset main data structures used by the backend logic
         st.session_state.non_operational = {line: [] for line in LINES} 
         st.session_state.accommodation_c = [] 
         
-        # Reset widget-specific keys to ensure fresh defaults for a new day
         for line_code in LINES:
             st.session_state[f"non_op_{line_code}"] = [] 
         st.session_state["accommodation_stations_c"] = [] 
 
-    # Fallback: Ensure essential keys exist if somehow missed by daily reset (e.g., very first session run)
-    if 'non_operational' not in st.session_state: # For the logic class
+    if 'non_operational' not in st.session_state:
         st.session_state.non_operational = {line: [] for line in LINES}
-    if 'accommodation_c' not in st.session_state: # For the logic class
+    if 'accommodation_c' not in st.session_state:
         st.session_state.accommodation_c = []
     
-    # For the multiselect widgets themselves
     if "accommodation_stations_c" not in st.session_state:
         st.session_state.accommodation_stations_c = []
     for line_code in LINES:
         if f"non_op_{line_code}" not in st.session_state:
             st.session_state[f"non_op_{line_code}"] = []
 
-def update_session_state_on_submit() -> None:
+def update_session_state_after_submit() -> None:
     """Updates main logic-driving session state variables based on widget inputs."""
     for line_code in LINES:
         st.session_state.non_operational[line_code] = st.session_state.get(f"non_op_{line_code}", [])
@@ -134,23 +131,62 @@ def _render_column_html(
 
 def generate_print_friendly_html(date: str, schedule: Dict[str, List[str]], down_stations_data: Dict[str, List[int]]) -> str:
     """Generates the full HTML string for the print-friendly report."""
-    css_styles = """
+    
+    watermark_text = "jerjerry is the best 💙"
+    
+    svg_string = f'''<svg width="200" height="130" xmlns="http://www.w3.org/2000/svg">
+      <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" 
+        transform="rotate(-35 100 65)" 
+        style="font-size: 14px; font-weight: 600; fill: #000; opacity: 0.15; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        {watermark_text}
+      </text>
+    </svg>'''
+    
+    svg_bytes = svg_string.encode('utf-8')
+    b64_svg = base64.b64encode(svg_bytes).decode('utf-8')
+    data_uri = f"data:image/svg+xml;base64,{b64_svg}"
+
+    css_styles = f"""
         <style>
-            @media print { @page { size: A4; margin: 10mm; } body { margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; } .no-print { display: none !important; } }
-            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: white; color: #1c1c1e; font-size: 10pt; margin: 10mm; line-height: 1.2; position: relative; }
-            .container { max-width: 100%; box-sizing: border-box; }
-            .header { text-align: center; margin-bottom: 8mm; padding-bottom: 4mm; border-bottom: 1px solid #d1d1d6; }
-            .title { font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase; color: #1c1c1e; }
-            .date { font-size: 10pt; margin: 3mm 0; color: #8e8e93; }
-            .columns { display: flex; justify-content: space-between; gap: 8mm; }
-            .column { flex: 1; max-width: 48%; }
-            .line-group { margin-bottom: 6mm; page-break-inside: avoid; }
-            .line-title { font-size: 12pt; font-weight: 600; text-align: center; margin-bottom: 3mm; padding: 2mm 4mm; background-color: #f2f2f7; text-transform: uppercase; color: #1c1c1e; border-radius: 4px; }
-            .pairs { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 3mm; padding: 0 2mm; }
-            .pair { padding: 3mm 4mm; border: 1px solid #d1d1d6; border-radius: 4px; font-size: 10pt; text-align: center; background-color: white; color: #1c1c1e; }
-            .pair.down-station-item { background-color: #fdecea; color: #c0392b; border-color: #c0392b; }
-            .empty-message { font-style: italic; color: #8e8e93; text-align: center; padding: 3mm; font-size: 10pt; grid-column: 1 / -1; }
-            .watermark { margin-top: 40px; text-align: center; opacity: 0.15; font-size: 12pt; }
+            @media print {{ 
+                @page {{ size: A4; margin: 10mm; }} 
+                body {{ margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }} 
+                .no-print {{ display: none !important; }} 
+                .full-page-watermark {{ display: block !important; }}
+            }}
+            body {{ 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                background-color: white; 
+                color: #1c1c1e; 
+                font-size: 10pt; 
+                margin: 10mm; 
+                line-height: 1.2; 
+                position: relative;
+            }}
+            .container {{ max-width: 100%; box-sizing: border-box; position: relative; z-index: 1; }}
+            .header {{ text-align: center; margin-bottom: 8mm; padding-bottom: 4mm; border-bottom: 1px solid #d1d1d6; }}
+            .title {{ font-size: 16pt; font-weight: bold; margin: 0; text-transform: uppercase; color: #1c1c1e; }}
+            .date {{ font-size: 10pt; margin: 3mm 0; color: #8e8e93; }}
+            .columns {{ display: flex; justify-content: space-between; gap: 8mm; }}
+            .column {{ flex: 1; max-width: 48%; }}
+            .line-group {{ margin-bottom: 6mm; page-break-inside: avoid; }}
+            .line-title {{ font-size: 12pt; font-weight: 600; text-align: center; margin-bottom: 3mm; padding: 2mm 4mm; background-color: #f2f2f7; text-transform: uppercase; color: #1c1c1e; border-radius: 4px; }}
+            .pairs {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 3mm; padding: 0 2mm; }}
+            .pair {{ padding: 3mm 4mm; border: 1px solid #d1d1d6; border-radius: 4px; font-size: 10pt; text-align: center; background-color: white; color: #1c1c1e; }}
+            .pair.down-station-item {{ background-color: #fdecea; color: #c0392b; border-color: #c0392b; }}
+            .empty-message {{ font-style: italic; color: #8e8e93; text-align: center; padding: 3mm; font-size: 10pt; grid-column: 1 / -1; }}
+            
+            .full-page-watermark {{
+                position: fixed; 
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: -1;
+                pointer-events: none;
+                background-image: url('{data_uri}');
+                background-repeat: repeat;
+            }}
         </style>
     """
     
@@ -164,6 +200,7 @@ def generate_print_friendly_html(date: str, schedule: Dict[str, List[str]], down
         {css_styles}
     </head>
     <body>
+        <div class='full-page-watermark'></div>
         <div class='container'>
             <div class='header'> <div class='title'>Station Rotation</div> <div class='date'>Date: {date}</div> </div>
             <div class='columns'>
@@ -175,11 +212,8 @@ def generate_print_friendly_html(date: str, schedule: Dict[str, List[str]], down
                 </div>
             </div>
         </div>
-        <div class='watermark'>
-            <img src='https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg' alt='Amazon Logo' style='height: 30px; vertical-align: middle;'>
-            <div style='margin-top: 4px;'>jerjerry</div>
-        </div>
-    </div></body></html>"""
+    </body>
+    </html>"""
     return html_content
 
 # --- UI Rendering Helper Functions ---
@@ -199,7 +233,7 @@ def _render_line_input_row(
         if primary_label_text: 
             st.markdown(f"**{primary_label_text}**<br>{secondary_label_text}", unsafe_allow_html=True)
         else:
-            st.markdown(f"{secondary_label_text}", unsafe_allow_html=True) # For Line C's second input
+            st.markdown(f"{secondary_label_text}", unsafe_allow_html=True)
             
     with col_widget:
         widget_options = options
@@ -215,7 +249,7 @@ def _render_line_input_row(
                 return 
 
         st.multiselect(
-            label="", # Visual label is in the left column
+            label="",
             options=widget_options,
             key=widget_key, 
             help=help_text
@@ -241,7 +275,7 @@ def render_configuration_form(all_stations_for_multiselect: List[int]) -> bool:
                     help_text="Select stations for operators who will remain at their current station (e.g., for '1-1' type pairings)."
                 )
                 _render_line_input_row(
-                    primary_label_text="", # No primary label for the second Line C input
+                    primary_label_text="",
                     secondary_label_text="Unavailable",
                     widget_key=f"non_op_{line_key}",
                     options=all_stations_for_multiselect, 
@@ -257,15 +291,14 @@ def render_configuration_form(all_stations_for_multiselect: List[int]) -> bool:
                     options=all_stations_for_multiselect,
                     help_text=f"Select stations on Line {line_key} that are broken or cannot be used today."
                 )
-            st.write("") # Consistent vertical gap
+            st.write("")
 
         st.divider() 
         
         submitted: bool = st.form_submit_button(
             "Generate & Download Schedule", 
             type="primary",
-            use_container_width=True,
-            on_click=update_session_state_on_submit 
+            use_container_width=True
         )
     return submitted
 
@@ -323,22 +356,18 @@ def main() -> None:
     rotation_logic_handler = ProductionRotation() 
     all_stations_for_multiselect: List[int] = STATIONS 
 
-    # No "Clear All Selections" button in this version, relies on daily reset
-    # Informational message if it's a new day and form might have old data (if session persisted unexpectedly)
     current_date_str_for_display = datetime.now().strftime("%Y-%m-%d")
     if 'last_date' in st.session_state and st.session_state.last_date != current_date_str_for_display:
-        # This condition implies initialize_session_state should have cleared inputs.
-        # If inputs are *not* clear, it means session persisted across days unexpectedly.
-        # The current initialize_session_state logic is designed to clear on new day.
         st.info(
              f"Welcome! It's a new day ({current_date_str_for_display}). "
              f"The form has been reset for today's input."
         )
 
-
     submitted = render_configuration_form(all_stations_for_multiselect)
 
     if submitted:
+        update_session_state_after_submit()
+        
         if not validate_line_c_configuration():
             return 
 
@@ -350,7 +379,6 @@ def main() -> None:
         current_date_display, schedule_data = rotation_logic_handler.generate_schedule()
         render_download_section(rotation_logic_handler, current_date_display, schedule_data)
         
-    # Display initial prompt if not submitted and not a "new day" message scenario
     elif 'last_date' not in st.session_state or \
          (st.session_state.get('last_date') == current_date_str_for_display and not submitted):
         st.info("Configure station settings using the form above and click 'Generate & Download Schedule'.")
